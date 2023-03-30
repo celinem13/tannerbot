@@ -1,9 +1,12 @@
+import time
+
 import discord
 import os
 import requests
 import json
 import random
 import praw
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,10 +16,10 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
-client_id = os.getenv('REDDIT_CLIENT_ID')
-password = os.getenv('YOUR_REDDIT_PASSWORD')
-client_secret = os.getenv('REDDIT_CLIENT_SECRET')
-user_agent = os.getenv('REDDIT_USER_AGENT')
+client_id = os.environ['reddit_client_id']
+password = os.environ['your_reddit_password']
+client_secret = os.environ['reddit_client_secret']
+user_agent = os.environ['reddit_user_agent']
 
 reddit = praw.Reddit(client_id=client_id,
                      client_secret=client_secret,
@@ -29,11 +32,21 @@ sad_words = [
     "unhappy", "angry", "anger", "miserable"
 ]
 
-starter_encouragements = ["Cheer up!", "Hang in there.", "You are a great person!", "We love you",
-                          "I'm here for you", "I love you", "Let me give you a hug, friend"]
+starter_encouragements = [
+    "Cheer up!", "Hang in there.", "You are a great person!", "We love you",
+    "I'm here for you", "I love you", "Let me give you a hug, friend"
+]
 
 if "responding" not in os.environ:
     os.environ["responding"] = "True"
+
+responding = os.getenv("responding").lower() in ["true", "yes", "1"]
+
+if "encouragements" in os.environ:
+    encouragements_str = os.environ["encouragements"]
+    encouragements = json.loads(encouragements_str)
+else:
+    encouragements = starter_encouragements
 
 
 def get_quote():
@@ -44,19 +57,14 @@ def get_quote():
 
 
 def update_encouragements(encouraging_message):
-    if "encouragements" in os.environ:
-        encouragements = os.environ["encouragements"].split(",")
-        encouragements.append(encouraging_message)
-        os.environ["encouragements"] = ",".join(encouragements)
-    else:
-        os.environ["encouragements"] = encouraging_message
+    encouragements.append(encouraging_message)
+    os.environ["encouragements"] = json.dumps(encouragements)
 
 
 def delete_encouragement(index):
-    encouragements = os.environ["encouragements"].split(",")
     if len(encouragements) > index:
         del encouragements[index]
-    os.environ["encouragements"] = ",".join(encouragements)
+        os.environ["encouragements"] = json.dumps(encouragements)
 
 
 @client.event
@@ -75,13 +83,9 @@ async def on_message(message):
         quote = get_quote()
         await message.channel.send(quote)
 
-    if os.getenv("responding").lower() == "true":
-        options = starter_encouragements
-        if "encouragements" in os.environ:
-            options += os.environ["encouragements"].split(",")
-
+    if responding:
         if any(word in msg for word in sad_words):
-            await message.channel.send(random.choice(options))
+            await message.channel.send(random.choice(encouragements))
 
     if msg.startswith("$new"):
         encouraging_message = msg.split("$new ", 1)[1]
@@ -89,33 +93,27 @@ async def on_message(message):
         await message.channel.send("New encouraging message added.")
 
     if msg.startswith("$del"):
-        encouragements = []
-        if "encouragements" in os.environ:
-            index = int(msg.split("$del", 1)[1])
-            delete_encouragement(index)
-            encouragements = os.environ["encouragements"].split(",")
-        await message.channel.send(encouragements)
+        index = int(msg.split("$del", 1)[1])
+        delete_encouragement(index)
+        await message.channel.send("Encouraging message deleted.")
 
     if msg.startswith("$list"):
-        encouragements = []
-        if "encouragements" in os.environ:
-            encouragements = os.environ["encouragements"].split(",")
-        await message.channel.send(encouragements)
+        encouragements_list = "\n".join(encouragements)
+        await message.channel.send(encouragements_list)
 
     if msg.startswith("$responding"):
-        value = msg.split("$responding ", 1)[1]
+        value = msg.split("$responding ", 1)[1].lower()
 
-        if value.lower() == "true":
-            db["responding"] = True
+        if value in ["true", "yes", "1"]:
+            os.environ["responding"] = "True"
             await message.channel.send("Responding is on.")
         else:
-            db["responding"] = False
+            os.environ["responding"] = "False"
             await message.channel.send("Responding is off.")
 
-    @client.command(name='meme')
-    async def send_meme(ctx):
+    if msg.startswith('$meme'):
         subreddit = reddit.subreddit('memes')
-        posts = subreddit.hot(limit=20)
+        posts = subreddit.hot(limit=50)
         random_post_number = random.randint(1, 50)
         for i, post in enumerate(posts):
             if i == random_post_number:
@@ -123,8 +121,16 @@ async def on_message(message):
                 image_url = post.url
                 embed = discord.Embed(title=title)
                 embed.set_image(url=image_url)
-                await ctx.send(embed=embed)
+                await message.channel.send(embed=embed)
                 break
 
+    if msg.startswith('$joke'):
+        response = requests.get("https://official-joke-api.appspot.com/random_joke")
+        json_data = json.loads(response.text)
+        setup = json_data["setup"]
+        punchline = json_data["punchline"]
+        await message.channel.send(setup)
+        time.sleep(3)
+        await message.channel.send(punchline)
 
-client.run(os.getenv("TOKEN"))
+    client.run(os.getenv("TOKEN"))

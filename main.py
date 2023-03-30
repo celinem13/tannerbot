@@ -133,5 +133,4 @@ async def on_message(message):
         time.sleep(3)
         await message.channel.send(punchline)
 
-    client.run(os.getenv("TOKEN"))
-
+client.run(os.getenv("TOKEN"))

@@ -128,15 +128,4 @@ async def on_message(message):
                     await message.channel.send(embed=embed)
                     break
 
-    if msg.startswith('$joke'):
-        async with aiohttp.ClientSession() as session:
-            async with session.get("https://official-joke-api.appspot.com/random_joke") as response:
-                data = await response.json()
-                setup = data["setup"]
-                punchline = data["punchline"]
-                await message.channel.send(setup)
-                await asyncio.sleep(3)
-                await message.channel.send(punchline)
-
-
 client.run(os.getenv("TOKEN"))

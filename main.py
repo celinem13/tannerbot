@@ -19,11 +19,13 @@ password = os.environ['your_reddit_password']
 client_secret = os.environ['reddit_client_secret']
 user_agent = os.environ['reddit_user_agent']
 
-reddit = asyncpraw.Reddit(client_id=client_id,
-                     client_secret=client_secret,
-                     username="tannerbot227",
-                     password=password,
-                     user_agent=user_agent)
+reddit = asyncpraw.Reddit(
+    client_id=client_id,
+    client_secret=client_secret,
+    username="tannerbot227",
+    password=password,
+    user_agent=user_agent
+)
 
 sad_words = [
     "sad", "SAD", "Sad", "SAd", "sAD", "sAd", "saD", "SaD", "depressed",
@@ -69,6 +71,7 @@ def delete_encouragement(index):
 @client.event
 async def on_ready():
     print("We have logged in as {0.user}".format(client))
+
 
 @client.event
 async def on_message(message):
@@ -134,5 +137,6 @@ async def on_message(message):
                 await message.channel.send(setup)
                 await asyncio.sleep(3)
                 await message.channel.send(punchline)
+
 
 client.run(os.getenv("TOKEN"))

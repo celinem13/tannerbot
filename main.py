@@ -64,11 +64,9 @@ async def get_quote():
             quote = json_data[0]["q"] + " -" + json_data[0]["a"]
             return quote
 
-
 async def update_encouragements(encouraging_message):
-    async with encouragements_lock:
-        encouragements.append(encouraging_message)
-        os.environ["encouragements"] = json.dumps(encouragements)
+    encouragements.append(encouraging_message)
+    os.environ["encouragements"] = json.dumps(encouragements)
 
 
 async def delete_encouragement(index):

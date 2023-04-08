@@ -119,65 +119,98 @@ async def toggle_responding(ctx):
         else:
             await ctx.send("Responding to sad words has been disabled.")
 
-@bot.command()
-async def play(ctx, *url):
-    voice_channel = ctx.author.voice.channel
-    if voice_channel is None:
-        await ctx.send("You must be in a voice channel to use this command.")
+queue = []
+
+async def play_song(ctx, url):
+    if not ctx.message.author.voice:
+        await ctx.send("You are not connected to a voice channel.")
         return
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if voice is None:
-        voice = await voice_channel.connect()
     else:
-        if voice.is_playing():
-            voice.stop()
+        channel = ctx.message.author.voice.channel
+
+    if not queue:
+        await channel.connect()
+
+    server = ctx.message.guild
+    voice_channel = server.voice_client
+
     try:
-        voice.play(discord.FFmpegPCMAudio(url))
-    except:
-        await ctx.send("An error occurred while trying to play the audio.")
-        return
-    await ctx.send(f"Now playing: {url}")
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=bot.loop)
+            voice_channel.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+            await ctx.send(f"Playing: {player.title}")
+    except Exception as e:
+        print(e)
+        await ctx.send("An error occurred while trying to play the song.")
+
+class YTDLSource(discord.PCMVolumeTransformer):
+    def __init__(self, source, *, data, volume=0.5):
+        super().__init__(source, volume)
+        self.data = data
+        self.title = data.get('title')
+        self.url = data.get('url')
+
+    @classmethod
+    async def from_url(cls, url, *, loop=None, stream=False):
+        loop = loop or asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, lambda: youtube_dl.YoutubeDL().extract_info(url, download=not stream))
+        if 'entries' in data:
+            data = data['entries'][0]
+        filename = data['url'] if stream else youtube_dl.YoutubeDL().prepare_filename(data)
+        return cls(discord.FFmpegPCMAudio(filename), data=data)
+
+@bot.command()
+async def play(ctx, *, url):
+    queue.append(url)
+    await play_song(ctx, queue[0])
+
+@bot.command()
+async def skip(ctx):
+    server = ctx.message.guild
+    voice_channel = server.voice_client
+    voice_channel.stop()
+
+    if len(queue) > 0:
+        queue.pop(0)
+
+    if len(queue) > 0:
+        await play_song(ctx, queue[0])
+    else:
+        await voice_channel.disconnect()
 
 @bot.command()
 async def stop(ctx):
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if voice is None:
-        await ctx.send("The bot is not currently playing any audio.")
-        return
-    voice.stop()
-    await ctx.send("Audio playback stopped.")
+    server = ctx.message.guild
+    voice_channel = server.voice_client
+    voice_channel.stop()
+    queue.clear()
+    await voice_channel.disconnect()
+
+@bot.command()
+async def queue(ctx):
+    if not voice_client := ctx.guild.voice_client:
+        return await ctx.send("I'm not connected to a voice channel.")
+    if not (player := voice_client.source):
+        return await ctx.send("There's no music playing at the moment.")
+
+    queue = player.queue
+
+    if not queue:
+        return await ctx.send("The queue is empty.")
+
+    embed = discord.Embed(title="Music queue", color=discord.Color.blue())
+    for index, song in enumerate(queue, start=1):
+        embed.add_field(name=f"{index}. {song.title}", value=song.url, inline=False)
+
+    await ctx.send(embed=embed)
 
 @bot.command()
 async def leave(ctx):
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if voice is None:
-        await ctx.send("The bot is not currently connected to a voice channel.")
-        return
-    await voice.disconnect()
-    await ctx.send("Disconnected from voice channel.")
-
-@bot.command()
-async def pause(ctx):
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if voice is None:
-        await ctx.send("The bot is not currently playing any audio.")
-        return
-    if voice.is_playing():
-        voice.pause()
-        await ctx.send("Audio playback paused.")
+    voice_client = ctx.guild.voice_client
+    if voice_client:
+        await voice_client.disconnect()
+        await ctx.send("Disconnected from voice channel.")
     else:
-        await ctx.send("The bot is not currently playing any audio.")
-
-@bot.command()
-async def resume(ctx):
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if voice is None:
-        await ctx.send("The bot is not currently playing any audio.")
-        return
-    if voice.is_paused():
-        voice.resume()
-        await ctx.send("Audio playback resumed.")
-    else:
-        await ctx.send("The bot is not currently paused.")
+        await ctx.send("I am not currently in a voice channel.")
 
 bot.run(os.environ['DISCORD_TOKEN'])

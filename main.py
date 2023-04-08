@@ -120,7 +120,7 @@ async def toggle_responding(ctx):
             await ctx.send("Responding to sad words has been disabled.")
 
 @bot.command()
-async def play(ctx, *, url):
+async def play(ctx, *url):
     voice_channel = ctx.author.voice.channel
     if voice_channel is None:
         await ctx.send("You must be in a voice channel to use this command.")

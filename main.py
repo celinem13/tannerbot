@@ -169,8 +169,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 
 @bot.command()
-async def play(ctx, *url):
-    queue.append(url)
+async def play(ctx, *, url):
+    queue.append_array(url)
     await play_song(ctx, queue[0])
 
 

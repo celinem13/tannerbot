@@ -1,3 +1,4 @@
+from discord import voice_client
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -188,7 +189,7 @@ async def stop(ctx):
 
 @bot.command()
 async def queue(ctx):
-    if not voice_client := ctx.guild.voice_client:
+    if not voice_client == ctx.guild.voice_client:
         return await ctx.send("I'm not connected to a voice channel.")
     if not (player := voice_client.source):
         return await ctx.send("There's no music playing at the moment.")

@@ -128,103 +128,71 @@ async def toggle_responding(ctx):
 queue = []
 
 
-async def play_song(ctx, url):
-    if not ctx.message.author.voice:
-        await ctx.send("You are not connected to a voice channel.")
-        return
-    else:
-        channel = ctx.message.author.voice.channel
-
-    if not queue:
-        await channel.connect()
-
-    server = ctx.message.guild
-    voice_channel = server.voice_client
-
-    try:
-        async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=bot.loop)
-            voice_channel.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
-            await ctx.send(f"Playing: {player.title}")
-    except Exception as e:
-        print(e)
-        await ctx.send("An error occurred while trying to play the song.")
-
-
-class YTDLSource(discord.PCMVolumeTransformer):
-    def __init__(self, source, *, data, volume=0.5):
-        super().__init__(source, volume)
-        self.data = data
-        self.title = data.get('title')
-        self.url = data.get('url')
-
-    @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: youtube_dl.YoutubeDL().extract_info(url, download=not stream))
-        if 'entries' in data:
-            data = data['entries'][0]
-        filename = data['url'] if stream else youtube_dl.YoutubeDL().prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename), data=data)
-
-
 @bot.command()
 async def play(ctx, *url):
-    queue.append_array(url)
-    await play_song(ctx, queue[0])
+    voice_channel = ctx.author.voice.channel
+    if not voice_channel:
+        await ctx.send("You need to be in a voice channel to use this command.")
+        return
+
+    song_info = youtube_dl.YoutubeDL().extract_info(url=url, download=False)
+    song_title = song_info['title']
+
+    queue.append({"title": song_title, "url": url})
+
+    if len(queue) == 1:
+        await play_song(ctx)
 
 
 @bot.command()
 async def skip(ctx):
-    server = ctx.message.guild
-    voice_channel = server.voice_client
-    voice_channel.stop()
+    if len(queue) == 0:
+        await ctx.send("There are no songs in the queue.")
+        return
+
+    voice_client = ctx.voice_client
+    if voice_client.is_playing():
+        voice_client.stop()
+
+    queue.pop(0)
 
     if len(queue) > 0:
-        queue.pop(0)
-
-    if len(queue) > 0:
-        await play_song(ctx, queue[0])
-    else:
-        await voice_channel.disconnect()
+        await play_song(ctx)
 
 
 @bot.command()
 async def stop(ctx):
-    server = ctx.message.guild
-    voice_channel = server.voice_client
-    voice_channel.stop()
     queue.clear()
-    await voice_channel.disconnect()
+
+    voice_client = ctx.voice_client
+    if voice_client.is_playing():
+        voice_client.stop()
+
+    await voice_client.disconnect()
 
 
-@bot.command()
-async def queue(ctx):
-    if not voice_client == ctx.guild.voice_client:
-        return await ctx.send("I'm not connected to a voice channel.")
-    if not (player := voice_client.source):
-        return await ctx.send("There's no music playing at the moment.")
+async def play_song(ctx):
+    voice_channel = ctx.author.voice.channel
+    voice_client = await voice_channel.connect()
 
-    queue = player.queue
+    song = queue[0]
+    url = song["url"]
+    song_title = song["title"]
 
-    if not queue:
-        return await ctx.send("The queue is empty.")
-
-    embed = discord.Embed(title="Music queue", color=discord.Color.blue())
-    for index, song in enumerate(queue, start=1):
-        embed.add_field(name=f"{index}. {song.title}", value=song.url, inline=False)
-
+    embed = discord.Embed(title="Now playing", description=song_title, color=discord.Color.green())
     await ctx.send(embed=embed)
 
+    voice_client.play(discord.FFmpegPCMAudio(url, options="-vn"))
 
-@bot.command()
-async def leave(ctx):
-    voice_client = ctx.guild.voice_client
-    if voice_client:
-        await voice_client.disconnect()
-        await ctx.send("Disconnected from voice channel.")
+    while voice_client.is_playing():
+        await asyncio.sleep(1)
+
+    queue.pop(0)
+
+    if len(queue) > 0:
+        await play_song(ctx)
     else:
-        await ctx.send("I am not currently in a voice channel.")
+        await voice_client.disconnect()
 
 
 bot.run(os.environ['DISCORD_TOKEN'])

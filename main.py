@@ -40,6 +40,8 @@ starter_encouragements = [
     "I'm here for you", "I love you", "Let me give you a hug, friend"
 ]
 
+encouragements = []
+
 if "responding" not in os.environ:
     os.environ["responding"] = "True"
 

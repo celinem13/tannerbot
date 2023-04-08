@@ -118,3 +118,66 @@ async def toggle_responding(ctx):
             await ctx.send("Responding to sad words has been enabled.")
         else:
             await ctx.send("Responding to sad words has been disabled.")
+
+@bot.command()
+async def play(ctx, *, url):
+    voice_channel = ctx.author.voice.channel
+    if voice_channel is None:
+        await ctx.send("You must be in a voice channel to use this command.")
+        return
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice is None:
+        voice = await voice_channel.connect()
+    else:
+        if voice.is_playing():
+            voice.stop()
+    try:
+        voice.play(discord.FFmpegPCMAudio(url))
+    except:
+        await ctx.send("An error occurred while trying to play the audio.")
+        return
+    await ctx.send(f"Now playing: {url}")
+
+@bot.command()
+async def stop(ctx):
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice is None:
+        await ctx.send("The bot is not currently playing any audio.")
+        return
+    voice.stop()
+    await ctx.send("Audio playback stopped.")
+
+@bot.command()
+async def leave(ctx):
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice is None:
+        await ctx.send("The bot is not currently connected to a voice channel.")
+        return
+    await voice.disconnect()
+    await ctx.send("Disconnected from voice channel.")
+
+@bot.command()
+async def pause(ctx):
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice is None:
+        await ctx.send("The bot is not currently playing any audio.")
+        return
+    if voice.is_playing():
+        voice.pause()
+        await ctx.send("Audio playback paused.")
+    else:
+        await ctx.send("The bot is not currently playing any audio.")
+
+@bot.command()
+async def resume(ctx):
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice is None:
+        await ctx.send("The bot is not currently playing any audio.")
+        return
+    if voice.is_paused():
+        voice.resume()
+        await ctx.send("Audio playback resumed.")
+    else:
+        await ctx.send("The bot is not currently paused.")
+
+bot.run(os.environ['DISCORD_TOKEN'])

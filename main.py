@@ -1,18 +1,21 @@
-import discord
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import os
 import json
 import random
 import aiohttp
 import asyncpraw
 import asyncio
-from dotenv import load_dotenv
 
-load_dotenv()
+import discord
+from discord.ext import commands
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="$", intents=intents)
 
 client_id = os.environ['reddit_client_id']
 password = os.environ['your_reddit_password']
@@ -73,44 +76,45 @@ async def delete_encouragement(index):
             os.environ["encouragements"] = json.dumps(encouragements)
 
 
-async def send_encouragement_message(message):
+@bot.event
+async def on_ready():
+    print(f"{bot.user.name} has connected to Discord!")
+
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send("Pong!")
+
+
+@bot.command()
+async def inspire(ctx):
+    quote = await get_quote()
+    await ctx.send(quote)
+
+
+@bot.command()
+async def add_encouragement(ctx, encouraging_message):
+    await update_encouragements(encouraging_message)
+    await ctx.send(f"New encouraging message added: {encouraging_message}")
+
+@bot.command()
+async def delete_encouragement(ctx, index):
+    index = int(index)
+    await delete_encouragement(index)
+    await ctx.send(f"Encouragement message at index {index} deleted.")
+
+@bot.command()
+async def list_encouragements(ctx):
+    encouragements_str = "\n- ".join(encouragements)
+    await ctx.send(f"List of encouraging messages:\n- {encouragements_str}")
+
+@bot.command()
+async def toggle_responding(ctx):
+    global responding
     async with responding_lock:
+        responding = not responding
+        os.environ["responding"] = str(responding)
         if responding:
-            if any(word in message.content for word in sad_words):
-                await message.channel.send(random.choice(encouragements))
-
-
-async def send_meme_message(message):
-    async with responding_lock:
-        async with aiohttp.ClientSession() as session:
-            subreddit = await reddit.subreddit('memes')
-            async for post in subreddit.hot(limit=50):
-                random_post_number = random.randint(1, 50)
-                if post.stickied:
-                    continue
-                data = {"title": post.title, "url": post.url}
-                if data["url"].endswith(('.jpg', '.jpeg', '.png')):
-                    title = data['title']
-                    image_url = data['url']
-                    embed = discord.Embed(title=title)
-                    embed.set_image(url=image_url)
-                    await message.channel.send(embed=embed)
-                    break
-
-
-async def process_message(msg):
-    # Add any necessary message processing logic here
-    await message.channel.send(msg)
-    
-async def handle_message(message):
-    if message.author == client.user:
-        return
-
-    msg = message.content
-
-    if msg.startswith("$inspire"):
-        quote = await get_quote()
-        await message.channel.send(quote)
-    else:
-        # Process the message asynchronously
-        asyncio.create_task(process_message(msg))
+            await ctx.send("Responding to sad words has been enabled.")
+        else:
+            await ctx.send("Responding to sad words has been disabled.")

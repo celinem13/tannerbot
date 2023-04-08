@@ -6,7 +6,6 @@ import aiohttp
 import asyncpraw
 import asyncio
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor
 
 load_dotenv()
 
@@ -51,8 +50,6 @@ else:
     encouragements = starter_encouragements
 
 encouragements_lock = asyncio.Lock()
-
-executor = ThreadPoolExecutor(max_workers=10)
 
 
 async def get_quote():
@@ -101,6 +98,10 @@ async def send_meme_message(message):
                     break
 
 
+async def process_message(msg):
+    # Add any necessary message processing logic here
+    await message.channel.send(msg)
+    
 async def handle_message(message):
     if message.author == client.user:
         return
@@ -110,67 +111,6 @@ async def handle_message(message):
     if msg.startswith("$inspire"):
         quote = await get_quote()
         await message.channel.send(quote)
-
-    async with responding_lock:
-        if responding:
-            if any(word in msg for word in sad_words):
-                await message.channel.send(random.choice(encouragements))
-
-    if msg.startswith("$new"):
-        encouraging_message = msg.split("$new ", 1)[1]
-        async with responding_lock:
-            await update_encouragements(encouraging_message)
-        await message.channel.send("New encouraging message added.")
-
-    if msg.startswith("$del"):
-        index = int(msg.split("$del", 1)[1])
-        async with responding_lock:
-            await delete_encouragement(index)
-        await message.channel.send("Encouraging message deleted.")
-
-    if msg.startswith("$list"):
-        async with responding_lock:
-            encouragements_list = "\n".join(encouragements)
-        await message.channel.send(encouragements_list)
-
-    if msg.startswith("$responding"):
-        value = msg.split("$responding ", 1)[1].lower()
-
-        async with responding_lock:
-            if value in ["true", "yes", "1"]:
-                os.environ["responding"] = "True"
-                responding = True
-                await message.channel.send("Responding is on.")
-            else:
-                os.environ["responding"] = "False"
-                responding = False
-                await message.channel.send("Responding is off.")
-
-    if msg.startswith('$meme'):
-        async with aiohttp.ClientSession() as session:
-            async with responding_lock:
-                subreddit = await reddit.subreddit('memes')
-                async for post in subreddit.hot(limit=50):
-                    random_post_number = random.randint(1, 50)
-                    if post.stickied:
-                        continue
-                    data = {"title": post.title, "url": post.url}
-                    if data["url"].endswith(('.jpg', '.jpeg', '.png')):
-                        title = data['title']
-                        image_url = data['url']
-                        embed = discord.Embed(title=title)
-                        embed.set_image(url=image_url)
-                        await message.channel.send(embed=embed)
-                        break
-
-    @client.event
-    async def on_ready():
-        print("We have logged in as {0.user}".format(client))
-
-    @client.event
-    async def on_message(message):
-        loop = asyncio.get_running_loop()
-        asyncio.ensure_future(handle_message(message), loop=loop)
-        asyncio.ensure_future(executor.submit(handle_message, message), loop=loop)
-
-    client.run(os.getenv("TOKEN"))
+    else:
+        # Process the message asynchronously
+        asyncio.create_task(process_message(msg))

@@ -1,8 +1,3 @@
-from discord import voice_client
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import os
 import json
 import random
@@ -12,6 +7,11 @@ import asyncio
 import youtube_dl
 import discord
 from discord.ext import commands
+
+from discord import voice_client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -65,6 +65,7 @@ async def get_quote():
             quote = json_data[0]["q"] + " -" + json_data[0]["a"]
             return quote
 
+
 async def update_encouragements(encouraging_message):
     encouragements.append(encouraging_message)
     os.environ["encouragements"] = json.dumps(encouragements)
@@ -98,16 +99,19 @@ async def add_encouragement(ctx, encouraging_message):
     await update_encouragements(encouraging_message)
     await ctx.send(f"New encouraging message added: {encouraging_message}")
 
+
 @bot.command()
 async def delete_encouragement(ctx, index):
     index = int(index)
     await delete_encouragement(index)
     await ctx.send(f"Encouragement message at index {index} deleted.")
 
+
 @bot.command()
 async def list_encouragements(ctx):
     encouragements_str = "\n- ".join(encouragements)
     await ctx.send(f"List of encouraging messages:\n- {encouragements_str}")
+
 
 @bot.command()
 async def toggle_responding(ctx):
@@ -120,7 +124,9 @@ async def toggle_responding(ctx):
         else:
             await ctx.send("Responding to sad words has been disabled.")
 
+
 queue = []
+
 
 async def play_song(ctx, url):
     if not ctx.message.author.voice:
@@ -144,6 +150,7 @@ async def play_song(ctx, url):
         print(e)
         await ctx.send("An error occurred while trying to play the song.")
 
+
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -160,10 +167,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
         filename = data['url'] if stream else youtube_dl.YoutubeDL().prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename), data=data)
 
+
 @bot.command()
 async def play(ctx, *, url):
     queue.append(url)
     await play_song(ctx, queue[0])
+
 
 @bot.command()
 async def skip(ctx):
@@ -179,6 +188,7 @@ async def skip(ctx):
     else:
         await voice_channel.disconnect()
 
+
 @bot.command()
 async def stop(ctx):
     server = ctx.message.guild
@@ -186,6 +196,7 @@ async def stop(ctx):
     voice_channel.stop()
     queue.clear()
     await voice_channel.disconnect()
+
 
 @bot.command()
 async def queue(ctx):
@@ -205,6 +216,7 @@ async def queue(ctx):
 
     await ctx.send(embed=embed)
 
+
 @bot.command()
 async def leave(ctx):
     voice_client = ctx.guild.voice_client
@@ -213,5 +225,6 @@ async def leave(ctx):
         await ctx.send("Disconnected from voice channel.")
     else:
         await ctx.send("I am not currently in a voice channel.")
+
 
 bot.run(os.environ['DISCORD_TOKEN'])
